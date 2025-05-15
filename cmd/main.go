@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"os"
+	"time"
+
 	"github.com/milad-rasouli/jaabz/internal/infra/godotenv"
 	"github.com/milad-rasouli/jaabz/internal/infra/redis"
 	"github.com/milad-rasouli/jaabz/internal/repo/duplicate"
@@ -9,42 +12,47 @@ import (
 	"github.com/milad-rasouli/jaabz/internal/repo/telegram"
 	"github.com/milad-rasouli/jaabz/internal/service"
 	"log/slog"
-	"os"
-	"time"
 )
 
-// Job represents a job listing with relevant details
-
 func main() {
-	env := godotenv.NewEnv()
 	logger := initSlogLogger()
-	logger.Info("welcome to " + env.AppName)
+	env := godotenv.NewEnv()
+	logger.Info("Welcome to " + env.AppName)
+
+	// Verify environment variables
+	if env.TelegramBotToken == "" || env.TelegramChannelID == "" {
+		logger.Error("Missing Telegram environment variables", "token_empty", env.TelegramBotToken == "", "channel_id_empty", env.TelegramChannelID == "")
+		os.Exit(1)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
 	rdis := redis.NewRedis(env)
-	err := rdis.Setup(ctx)
-	if err != nil {
-		logger.Error("failed to setup redis", "error", err)
+	if err := rdis.Setup(ctx); err != nil {
+		logger.Error("Failed to setup redis", "error", err)
 		os.Exit(1)
 	}
 	defer rdis.Close()
-	err = rdis.HealthCheck(ctx)
-	if err != nil {
-		logger.Error("failed to connect to redis", "error", err)
+
+	if err := rdis.HealthCheck(ctx); err != nil {
+		logger.Error("Failed to connect to redis", "error", err)
 		os.Exit(1)
 	}
 
 	dupl := duplicate.New(logger, rdis)
 	jaabz := jaabz2.New(env, logger)
-	tele := telegram.New(logger, env)
-	jaabzService := service.NewJaabzService(logger, dupl, jaabz, tele)
-	err = jaabzService.StartJaabzProcess(context.Background())
+	tele, err := telegram.New(logger, env)
 	if err != nil {
-		logger.Error("failed to process Jaabz", "error", err)
+		logger.Error("Failed to initialize Telegram", "error", err)
 		os.Exit(1)
 	}
 
+	jaabzService := service.NewJaabzService(logger, dupl, jaabz, tele)
+	if err := jaabzService.StartJaabzProcess(context.Background()); err != nil {
+		logger.Error("Failed to process Jaabz", "error", err)
+		os.Exit(1)
+	}
 }
 
 func initSlogLogger() *slog.Logger {
@@ -54,6 +62,5 @@ func initSlogLogger() *slog.Logger {
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, slogHandlerOptions))
 	slog.SetDefault(logger)
-
 	return logger
 }

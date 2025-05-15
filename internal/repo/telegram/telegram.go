@@ -2,11 +2,12 @@ package telegram
 
 import (
 	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"strings"
+
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/milad-rasouli/jaabz/internal/entity"
 	"github.com/milad-rasouli/jaabz/internal/infra/godotenv"
 	"log/slog"
-	"strings"
 )
 
 type Telegram struct {
@@ -15,14 +16,19 @@ type Telegram struct {
 	channelID string
 }
 
-func New(logger *slog.Logger, env *godotenv.Env) *Telegram {
+func New(logger *slog.Logger, env *godotenv.Env) (*Telegram, error) {
 	logger = logger.With("package", "telegram")
+
+	if env.TelegramBotToken == "" {
+		logger.Error("Telegram bot token is empty")
+		return nil, fmt.Errorf("telegram bot token is empty")
+	}
 
 	// Initialize Telegram bot
 	bot, err := tgbotapi.NewBotAPI(env.TelegramBotToken)
 	if err != nil {
 		logger.Error("Failed to initialize Telegram bot", "error", err)
-		return &Telegram{logger: logger} // Return with nil bot to avoid panics
+		return nil, fmt.Errorf("failed to initialize telegram bot: %w", err)
 	}
 
 	logger.Info("Telegram bot initialized", "bot_username", bot.Self.UserName)
@@ -31,7 +37,11 @@ func New(logger *slog.Logger, env *godotenv.Env) *Telegram {
 		logger:    logger.With("repo", "telegram"),
 		bot:       bot,
 		channelID: env.TelegramChannelID,
-	}
+	}, nil
+}
+
+func (t *Telegram) Ready() bool {
+	return t.bot != nil
 }
 
 func (t *Telegram) Post(job entity.Job) error {

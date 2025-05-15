@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/milad-rasouli/jaabz/internal/error_list"
-	"github.com/milad-rasouli/jaabz/internal/repo/telegram"
-	"strings"
 	"time"
 
-	"github.com/milad-rasouli/jaabz/internal/entity"
+	"github.com/milad-rasouli/jaabz/internal/error_list"
 	"github.com/milad-rasouli/jaabz/internal/repo/duplicate"
 	"github.com/milad-rasouli/jaabz/internal/repo/jaabz"
+	"github.com/milad-rasouli/jaabz/internal/repo/telegram"
 	"log/slog"
 )
 
@@ -35,7 +33,7 @@ func NewJaabzService(logger *slog.Logger,
 }
 
 // StartJaabzProcess starts a background process to fetch jobs every 60 seconds,
-// check for duplicates, and show non-duplicate jobs.
+// check for duplicates, and post non-duplicate jobs to Telegram.
 func (j *JaabzService) StartJaabzProcess(ctx context.Context) error {
 	lg := j.logger.With("method", "StartJaabzProcess")
 	lg.Info("Starting Jaabz job processing")
@@ -62,7 +60,7 @@ func (j *JaabzService) StartJaabzProcess(ctx context.Context) error {
 	}
 }
 
-// processJobs fetches jobs, checks for duplicates, and shows non-duplicate jobs.
+// processJobs fetches jobs, checks for duplicates, and posts non-duplicate jobs to Telegram.
 func (j *JaabzService) processJobs(ctx context.Context) error {
 	lg := j.logger.With("method", "processJobs")
 
@@ -85,20 +83,12 @@ func (j *JaabzService) processJobs(ctx context.Context) error {
 			lg.Error("Failed to check duplicate", "visit_link", job.VisitLink, "error", err)
 			continue
 		}
-		j.show(job)
-		lg.Debug("Displayed non-duplicate job", "visit_link", job.VisitLink, "title", job.Title)
+		if err := j.teleRepo.Post(job); err != nil {
+			lg.Error("Failed to post job to Telegram", "visit_link", job.VisitLink, "title", job.Title, "error", err)
+			continue
+		}
+		lg.Debug("Posted non-duplicate job to Telegram", "visit_link", job.VisitLink, "title", job.Title)
 	}
 
 	return nil
-}
-
-// show prints the details of the provided job.
-func (j *JaabzService) show(job entity.Job) {
-	fmt.Printf("Title: %s\n", job.Title)
-	fmt.Printf("Company: %s\n", job.Company)
-	fmt.Printf("Work Status: %s\n", job.WorkStatus)
-	fmt.Printf("Visit Link: %s\n", job.VisitLink)
-	fmt.Printf("Skills: %s\n", strings.Join(job.Skills, ", "))
-	fmt.Printf("Location: %s\n", job.Location)
-	fmt.Println("---")
 }
