@@ -6,6 +6,7 @@ import (
 	"github.com/milad-rasouli/jaabz/internal/infra/redis"
 	"github.com/milad-rasouli/jaabz/internal/repo/duplicate"
 	jaabz2 "github.com/milad-rasouli/jaabz/internal/repo/jaabz"
+	"github.com/milad-rasouli/jaabz/internal/repo/telegram"
 	"github.com/milad-rasouli/jaabz/internal/service"
 	"log/slog"
 	"os"
@@ -36,9 +37,9 @@ func main() {
 
 	dupl := duplicate.New(logger, rdis)
 	jaabz := jaabz2.New(env, logger)
-
-	jaabzService := service.NewJaabzService(logger, dupl, jaabz)
-	err = jaabzService.JaabzProcess()
+	tele := telegram.New(logger, env)
+	jaabzService := service.NewJaabzService(logger, dupl, jaabz, tele)
+	err = jaabzService.StartJaabzProcess(context.Background())
 	if err != nil {
 		logger.Error("failed to process Jaabz", "error", err)
 		os.Exit(1)

@@ -7,10 +7,12 @@ import (
 )
 
 type Env struct {
-	AppName     string
-	Environment string
-	JaabzHost   string
-	RedisHost   string
+	AppName           string
+	Environment       string
+	JaabzHost         string
+	RedisHost         string
+	TelegramChannelID string
+	TelegramBotToken  string
 }
 
 func NewEnv() *Env {
@@ -25,4 +27,6 @@ func (e *Env) Load() {
 	e.Environment = os.Getenv("ENVIRONMENT")
 	e.JaabzHost = os.Getenv("JAABZ_HOST")
 	e.RedisHost = os.Getenv("REDIS_HOST")
+	e.TelegramChannelID = os.Getenv("TELEGRAM_CHANNEL_ID")
+	e.TelegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
 }
