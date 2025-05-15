@@ -1,7 +1,32 @@
 services:
-
   redis:
     image: redis:8.0-M02-alpine
     container_name: jaabz-redis
+    restart: unless-stopped
     ports:
       - "6378:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - jaabz-net
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jaabz-app
+    depends_on:
+      - redis
+    networks:
+      - jaabz-net
+    environment:
+      - REDIS_ADDR=jaabz-redis:6379
+    entrypoint: ["/app/build"]
+
+volumes:
+  redis_data:
+
+networks:
+  jaabz-net:
+    driver: bridge
