@@ -2,11 +2,12 @@ package telegram
 
 import (
 	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"strings"
+
+	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/milad-rasouli/jaabz/internal/entity"
 	"github.com/milad-rasouli/jaabz/internal/infra/godotenv"
 	"log/slog"
-	"strings"
 )
 
 type Telegram struct {
@@ -15,23 +16,26 @@ type Telegram struct {
 	channelID string
 }
 
-func New(logger *slog.Logger, env *godotenv.Env) *Telegram {
-	logger = logger.With("method", "telegram.new")
+func New(logger *slog.Logger, env *godotenv.Env) (*Telegram, error) {
+	logger = logger.With("package", "telegram")
 
 	// Initialize Telegram bot
 	bot, err := tgbotapi.NewBotAPI(env.TelegramBotToken)
 	if err != nil {
 		logger.Error("Failed to initialize Telegram bot", "error", err)
-		return &Telegram{logger: logger} // Return with nil bot to avoid panics
+		return nil, fmt.Errorf("failed to initialize telegram bot: %w", err)
 	}
-
 	logger.Info("Telegram bot initialized", "bot_username", bot.Self.UserName)
 
 	return &Telegram{
 		logger:    logger.With("repo", "telegram"),
 		bot:       bot,
 		channelID: env.TelegramChannelID,
-	}
+	}, nil
+}
+
+func (t *Telegram) Ready() bool {
+	return t.bot != nil
 }
 
 func (t *Telegram) Post(job entity.Job) error {
@@ -44,7 +48,7 @@ func (t *Telegram) Post(job entity.Job) error {
 
 	// Format the job message
 	message := fmt.Sprintf(
-		"*New Job Posting✨*\n\n"+
+		"*New Job Posting*\n\n"+
 			"*Title*: %s\n"+
 			"*Company*: %s\n"+
 			"*Work Status*: %s\n"+

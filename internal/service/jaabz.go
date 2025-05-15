@@ -13,6 +13,8 @@ import (
 	"log/slog"
 )
 
+const interval time.Duration = time.Hour
+
 type JaabzService struct {
 	logger        *slog.Logger
 	duplicateRepo *duplicate.Duplicate
@@ -38,7 +40,7 @@ func (j *JaabzService) StartJaabzProcess(ctx context.Context) error {
 	lg := j.logger.With("method", "StartJaabzProcess")
 	lg.Info("Starting Jaabz job processing")
 
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Run immediately on start
@@ -46,7 +48,6 @@ func (j *JaabzService) StartJaabzProcess(ctx context.Context) error {
 		lg.Error("Initial job processing failed", "error", err)
 	}
 
-	// Continue running every 60 seconds
 	for {
 		select {
 		case <-ctx.Done():

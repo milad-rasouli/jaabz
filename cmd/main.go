@@ -19,12 +19,6 @@ func main() {
 	env := godotenv.NewEnv()
 	logger.Info("Welcome to " + env.AppName)
 
-	// Verify environment variables
-	if env.TelegramBotToken == "" || env.TelegramChannelID == "" {
-		logger.Error("Missing Telegram environment variables", "token_empty", env.TelegramBotToken == "", "channel_id_empty", env.TelegramChannelID == "")
-		os.Exit(1)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
