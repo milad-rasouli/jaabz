@@ -1,14 +1,18 @@
 package telegram
 
 import (
+	"context"
 	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/milad-rasouli/jaabz/internal/entity"
 	"github.com/milad-rasouli/jaabz/internal/infra/godotenv"
+	"golang.org/x/time/rate"
 	"log/slog"
 	"strings"
 	"time"
 )
+
+var telegramLimiter = rate.NewLimiter(rate.Every(1*time.Second), 1)
 
 type Telegram struct {
 	logger    *slog.Logger
@@ -45,6 +49,12 @@ func (t *Telegram) Post(job entity.Job) error {
 		return fmt.Errorf("telegram bot not initialized")
 	}
 
+	// Apply rate limiting
+	if err := telegramLimiter.Wait(context.Background()); err != nil {
+		lg.Error("Rate limiter error", "error", err)
+		return err
+	}
+
 	message := fmt.Sprintf(
 		"*New Job Posting*\n\n"+
 			"*Title*: %s\n"+
@@ -65,31 +75,29 @@ func (t *Telegram) Post(job entity.Job) error {
 	msg.ParseMode = tgbotapi.ModeMarkdownV2
 	msg.DisableWebPagePreview = true
 
-	_, err := t.bot.Send(msg)
-	if err != nil {
-		// Check for rate limit response
+	for attempt := 0; attempt < 3; attempt++ {
+		_, err := t.bot.Send(msg)
+		if err == nil {
+			lg.Info("Successfully posted job to Telegram channel")
+			return nil
+		}
+
 		if strings.Contains(err.Error(), "Too Many Requests") {
 			var waitSec int
 			_, scanErr := fmt.Sscanf(err.Error(), "Too Many Requests: retry after %d", &waitSec)
 			if scanErr == nil {
 				lg.Warn("Rate limited, retrying after delay", "wait_seconds", waitSec)
-				time.Sleep(time.Duration(waitSec+1) * time.Second) // Add +1 for safety
-				_, retryErr := t.bot.Send(msg)
-				if retryErr != nil {
-					lg.Error("Retry failed", "error", retryErr)
-					return fmt.Errorf("telegram retry failed: %w", retryErr)
-				}
-				lg.Info("Successfully posted job after retry")
-				return nil
+				time.Sleep(time.Duration(waitSec+1) * time.Second)
+				continue
 			}
 		}
 
+		// Non-retryable error or parsing error
 		lg.Error("Failed to post job to Telegram channel", "error", err)
 		return fmt.Errorf("failed to post job to Telegram: %w", err)
 	}
 
-	lg.Info("Successfully posted job to Telegram channel")
-	return nil
+	return fmt.Errorf("failed to post job after retries")
 }
 
 // escapeMarkdown escapes special characters for Telegram MarkdownV2
