@@ -2,12 +2,12 @@ package telegram
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/milad-rasouli/jaabz/internal/entity"
 	"github.com/milad-rasouli/jaabz/internal/infra/godotenv"
 	"log/slog"
+	"strings"
+	"time"
 )
 
 type Telegram struct {
@@ -37,7 +37,6 @@ func New(logger *slog.Logger, env *godotenv.Env) (*Telegram, error) {
 func (t *Telegram) Ready() bool {
 	return t.bot != nil
 }
-
 func (t *Telegram) Post(job entity.Job) error {
 	lg := t.logger.With("method", "Post", "job_title", job.Title, "visit_link", job.VisitLink)
 
@@ -46,7 +45,6 @@ func (t *Telegram) Post(job entity.Job) error {
 		return fmt.Errorf("telegram bot not initialized")
 	}
 
-	// Format the job message
 	message := fmt.Sprintf(
 		"*New Job Posting*\n\n"+
 			"*Title*: %s\n"+
@@ -63,13 +61,29 @@ func (t *Telegram) Post(job entity.Job) error {
 		job.VisitLink,
 	)
 
-	// Create and send the message
 	msg := tgbotapi.NewMessageToChannel(t.channelID, message)
 	msg.ParseMode = tgbotapi.ModeMarkdownV2
 	msg.DisableWebPagePreview = true
 
 	_, err := t.bot.Send(msg)
 	if err != nil {
+		// Check for rate limit response
+		if strings.Contains(err.Error(), "Too Many Requests") {
+			var waitSec int
+			_, scanErr := fmt.Sscanf(err.Error(), "Too Many Requests: retry after %d", &waitSec)
+			if scanErr == nil {
+				lg.Warn("Rate limited, retrying after delay", "wait_seconds", waitSec)
+				time.Sleep(time.Duration(waitSec+1) * time.Second) // Add +1 for safety
+				_, retryErr := t.bot.Send(msg)
+				if retryErr != nil {
+					lg.Error("Retry failed", "error", retryErr)
+					return fmt.Errorf("telegram retry failed: %w", retryErr)
+				}
+				lg.Info("Successfully posted job after retry")
+				return nil
+			}
+		}
+
 		lg.Error("Failed to post job to Telegram channel", "error", err)
 		return fmt.Errorf("failed to post job to Telegram: %w", err)
 	}

@@ -21,7 +21,12 @@ services:
     networks:
       - jaabz-net
     environment:
-      - REDIS_ADDR=jaabz-redis:6379
+      - APP_NAME=jaabz
+      - ENVIRONMENT=development
+      - JAABZ_HOST=
+      - REDIS_HOST=jaabz-redis:6379
+      - TELEGRAM_CHANNEL_ID=
+      - TELEGRAM_BOT_TOKEN=
     entrypoint: ["/app/build"]
 
 volumes:
