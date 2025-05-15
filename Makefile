@@ -1,5 +1,5 @@
 build:
 	go build -o bin/jaabz ./cmd/.
 
-run:
+run: build
 	bin/jaabz
